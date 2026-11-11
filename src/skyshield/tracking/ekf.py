@@ -68,7 +68,7 @@ class EKF:
     @classmethod
     def from_measurement(
         cls, z: np.ndarray, sensor_pos: np.ndarray, R: np.ndarray, v_sigma: float = 30.0, q: float = 1.0
-    ) -> "EKF":
+    ) -> EKF:
         """One-point initialisation from a range-bearing measurement."""
         r, b = z
         x0 = np.array([sensor_pos[0] + r * np.cos(b), sensor_pos[1] + r * np.sin(b), 0.0, 0.0])

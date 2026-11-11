@@ -42,7 +42,7 @@ scenario -> ground truth -> sensors (RF/radar/acoustic) -> comms backhaul (jamme
 | Phase | Weeks | Deliverable |
 |---|---|---|
 | 0. Setup | 1 | Repo, scenario generator, EKF + one radar (DONE in this scaffold) |
-| 1. Tracking core | 2-4 | Multi-sensor models, UKF, GNN association, multi-target eval |
+| 1. Tracking core | 2-4 | Multi-sensor models, UKF, GNN association, multi-target eval (GNN, track management, OSPA DONE) |
 | 2. RF detection | 5-6 | Dataset pipeline, CNN, robustness study, detections feed tracker |
 | 3. Comms layer | 7-8 | Link model, jammer models, FH/DSSS, BER and PDR curves |
 | 4. Integration | 9-10 | Closed loop: jamming -> packet loss -> tracking error |
@@ -64,8 +64,25 @@ MVP = Phases 0, 1, 4 with a simplified link model. Stretch: IMM, JPDA, RL adapti
 - Every experiment is a script in `experiments/` that writes figures/metrics to `results/`.
 - Seed every RNG. Experiments must be reproducible.
 - Each module gets tests in `tests/`. Filters are validated with NEES consistency checks.
-- Run: `pip install -e .[dev]`, then `pytest` and `python experiments/phase0_single_target.py`.
+- Run: `pip install -e .[dev]`, then `pytest` and `python experiments/phase0_single_target.py`
+  (or `phase1_multi_target.py`, ~3 min because of the Monte Carlo sweeps).
+
+## Tracking design (Phase 1)
+
+- `tracking/gnn.py`: chi-square gate (default 0.99) + Hungarian assignment on cost d2 + ln|S|,
+  with one dummy "miss" column per track (cost = gate + ln|S|).
+- `tracking/manager.py`: `MultiTargetTracker`. Two-stage association (confirmed tracks first, then
+  tentative). One-point initiation, M/N confirmation (default 4/5), deletion after `max_misses`
+  consecutive misses or when position std exceeds `max_pos_std`. Only confirmed tracks are output.
+- 4/5 was chosen over 3/4 by measurement: 3/4 gave ~0.17 false confirmed tracks per scan at
+  20 clutter/scan with no targets; 4/5 gave 0, with the same OSPA on the crossing scenario.
+- `evaluation/metrics.py`: `ospa(X, Y, c, p)` returns distance plus localisation/cardinality parts.
+  Experiments use c = 100 m, p = 2.
+
+Known limitation: the constant-velocity EKF loses a target in a sharp (90 degree, 18 m/s) turn and
+re-initiates, so one target gets two track IDs. IMM is the planned fix.
 
 ## Next step
 
-Phase 1: multi-target scenarios with clutter, GNN data association, track initiation/deletion, OSPA metric.
+Rest of Phase 1: multi-sensor fusion (several radars, sequential updates; bearing-only RF DF
+sensor), UKF, track-continuity / ID-switch metric, cross-check against Stone Soup.

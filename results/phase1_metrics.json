@@ -1,0 +1,120 @@
+{
+  "config": {
+    "seed": 42,
+    "dt": 1.0,
+    "ospa_c": 100.0,
+    "ospa_p": 2,
+    "n_mc": 20,
+    "tracker": {
+      "q": 1.0,
+      "v_sigma": 30.0,
+      "gate_prob": 0.99,
+      "confirm_m": 4,
+      "confirm_n": 5,
+      "max_misses": 5,
+      "max_pos_std": 300.0
+    }
+  },
+  "single_run": {
+    "pd": 0.9,
+    "clutter_rate": 10.0,
+    "mean_ospa": 15.0884999695565,
+    "card_correct_frac": 0.9533333333333334,
+    "n_true_targets": 4,
+    "n_confirmed_track_ids": 5
+  },
+  "sweep_clutter": [
+    {
+      "pd": 0.9,
+      "clutter_rate": 0.0,
+      "mean_ospa": 15.42834654893801,
+      "ospa_ci95": 0.3088299904375334,
+      "mean_loc": 12.481716480506146,
+      "mean_card": 3.415662091182488,
+      "card_correct_frac": 0.9448333333333332
+    },
+    {
+      "pd": 0.9,
+      "clutter_rate": 5.0,
+      "mean_ospa": 15.101478252378058,
+      "ospa_ci95": 0.34412357985064673,
+      "mean_loc": 12.244649449006879,
+      "mean_card": 3.253876716783325,
+      "card_correct_frac": 0.9481666666666666
+    },
+    {
+      "pd": 0.9,
+      "clutter_rate": 10.0,
+      "mean_ospa": 15.708945284010216,
+      "ospa_ci95": 0.2731802526941314,
+      "mean_loc": 12.665336763153672,
+      "mean_card": 3.5185595555373355,
+      "card_correct_frac": 0.9436666666666665
+    },
+    {
+      "pd": 0.9,
+      "clutter_rate": 20.0,
+      "mean_ospa": 15.604576741469378,
+      "ospa_ci95": 0.28267213682909537,
+      "mean_loc": 12.45355557558748,
+      "mean_card": 3.6186308231489988,
+      "card_correct_frac": 0.9423333333333332
+    },
+    {
+      "pd": 0.9,
+      "clutter_rate": 40.0,
+      "mean_ospa": 16.573452962619278,
+      "ospa_ci95": 0.6877040827214402,
+      "mean_loc": 12.177316653049456,
+      "mean_card": 5.206967736202219,
+      "card_correct_frac": 0.9073333333333334
+    }
+  ],
+  "sweep_pd": [
+    {
+      "pd": 0.6,
+      "clutter_rate": 10.0,
+      "mean_ospa": 30.59255687352147,
+      "ospa_ci95": 1.7747941235438418,
+      "mean_loc": 13.758805277184857,
+      "mean_card": 19.967243721050515,
+      "card_correct_frac": 0.6611666666666667
+    },
+    {
+      "pd": 0.7,
+      "clutter_rate": 10.0,
+      "mean_ospa": 19.968656071222874,
+      "ospa_ci95": 0.7232833028961073,
+      "mean_loc": 13.593676461626654,
+      "mean_card": 7.491302182145972,
+      "card_correct_frac": 0.8758333333333332
+    },
+    {
+      "pd": 0.8,
+      "clutter_rate": 10.0,
+      "mean_ospa": 16.596864627890234,
+      "ospa_ci95": 0.5439882465352465,
+      "mean_loc": 12.767084533438554,
+      "mean_card": 4.4977955617792515,
+      "card_correct_frac": 0.9268333333333331
+    },
+    {
+      "pd": 0.9,
+      "clutter_rate": 10.0,
+      "mean_ospa": 15.708945284010216,
+      "ospa_ci95": 0.2731802526941314,
+      "mean_loc": 12.665336763153672,
+      "mean_card": 3.5185595555373355,
+      "card_correct_frac": 0.9436666666666665
+    },
+    {
+      "pd": 1.0,
+      "clutter_rate": 10.0,
+      "mean_ospa": 14.774266851617929,
+      "ospa_ci95": 0.22343318892849104,
+      "mean_loc": 12.133035543821276,
+      "mean_card": 3.0476821463603807,
+      "card_correct_frac": 0.9504999999999999
+    }
+  ]
+}
