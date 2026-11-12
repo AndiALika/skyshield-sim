@@ -129,7 +129,7 @@ The practical consequence for design: link-level PDR targets alone can mislead. 
 
 ## 4. Interactive dashboard
 
-`streamlit run streamlit_app.py` opens a dashboard. You pick the jammer shape, power and on-time, the radar Pd and the clutter rate. The app then runs the closed loop for plain, FH and DSSS backhaul plus an unjammed reference, about 15 s for all four. It shows OSPA and delivery KPIs, an animated map replay (truth, detections fused or lost, tracks with 2σ ellipses, link state), OSPA and delivery over time, and the per-link budget. A second view shows the precomputed Monte Carlo study.
+The dashboard is live at https://skyshield-sim-ak4yhbdtws32lihwrsdbyk.streamlit.app/ (or run `streamlit run streamlit_app.py` locally). You pick the jammer shape, power and on-time, the radar Pd and the clutter rate. The app then runs the closed loop for plain, FH and DSSS backhaul plus an unjammed reference, about 15 s for all four. It shows OSPA and delivery KPIs, an animated map replay (truth, detections fused or lost, tracks with 2σ ellipses, link state), OSPA and delivery over time, and the per-link budget. A second view shows the precomputed Monte Carlo study.
 
 ## 5. Limitations and next steps
 

@@ -1,5 +1,11 @@
 # SkyShield-Sim
 
+[![Live demo](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://skyshield-sim-ak4yhbdtws32lihwrsdbyk.streamlit.app/)
+[![tests](https://github.com/AndiALika/skyshield-sim/actions/workflows/tests.yml/badge.svg)](https://github.com/AndiALika/skyshield-sim/actions/workflows/tests.yml)
+![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
+
+**Live demo: [skyshield-sim-ak4yhbdtws32lihwrsdbyk.streamlit.app](https://skyshield-sim-ak4yhbdtws32lihwrsdbyk.streamlit.app/)** (pick a jammer and watch the track picture degrade; the app may take ~30 s to wake up).
+
 Software-only counter-UAS sensor network simulator: **detect, track, survive**.
 
 Drones fly through a protected area. Three radars detect them, with misses and clutter, and send each scan over a jammable radio backhaul to a fusion centre that tracks them. The question this project answers: **how much jamming does it take to blind the network, and how much do frequency hopping and DSSS buy?**
@@ -13,7 +19,7 @@ Drones fly through a protected area. Three radars detect them, with misses and c
 **Headline result:** spread spectrum buys about 18 dB of jammer power before tracking degrades. Tracking error doubles at 40 dBm jammer EIRP on a plain link, and at 56-58 dBm on FH or DSSS. Along the way: 30 % random packet loss costs the tracker only 2.5 m of accuracy, and *which* packets are lost matters as much as how many.
 
 - **Technical write-up:** [docs/writeup.md](docs/writeup.md) covers models, validation, results and limitations.
-- **Interactive dashboard:** `streamlit run streamlit_app.py` lets you pick a jammer and watch the closed loop (see [Dashboard](#dashboard)).
+- **Interactive dashboard:** [try it live](https://skyshield-sim-ak4yhbdtws32lihwrsdbyk.streamlit.app/), or run it locally with `streamlit run streamlit_app.py` (see [Dashboard](#dashboard)).
 - Everything is written from scratch: the EKF, GNN/Hungarian association, track management, OSPA, the CNN RF detector, and the link and jammer models. The suite has 110 tests, and every experiment is seeded and reproducible.
 
 ## Results by phase
@@ -120,6 +126,8 @@ A 50 dBm spot jammer switched on from 100 to 200 s blinds the plain-link network
 - **Latency doesn't matter here.** ARQ delays are about 2 ms against a 1 s scan and 0.2 s fusion deadline, so no report ever went stale. Loss, not delay, drives the degradation.
 
 ## Dashboard
+
+Live: https://skyshield-sim-ak4yhbdtws32lihwrsdbyk.streamlit.app/
 
 ```bash
 pip install -e .[dashboard]
