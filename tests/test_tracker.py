@@ -147,3 +147,79 @@ def test_confirmed_tracks_get_measurements_before_tentative():
     z, _ = radar.measure_multi(truth[5:6, :2], rng)
     tracker.step(z, radar.position, radar.R, DT)
     assert conf.consecutive_misses == 0
+
+
+# ----- multi-sensor / lossy fusion steps -------------------------------------------------------
+
+
+def two_radars():
+    return Radar(position=np.array([-1000.0, 0.0]), pd=1.0), Radar(position=np.array([1000.0, 0.0]), pd=1.0)
+
+
+def test_two_sensors_same_target_make_one_track():
+    rng = np.random.default_rng(10)
+    r1, r2 = two_radars()
+    truth = straight([0, 1500], [8, -5], 20)
+    tracker = MultiTargetTracker()
+    for k in range(20):
+        tracker.begin_step(float(k))
+        for r in (r1, r2):
+            zs, _ = r.measure_multi(truth[k : k + 1, :2], rng)
+            tracker.update(zs, r.position, r.R)
+        tracker.end_step()
+    assert len(tracker.tracks) == 1
+    assert np.linalg.norm(tracker.tracks[0].position - truth[-1, :2]) < 20.0
+
+
+def test_target_seen_by_one_sensor_is_not_counted_missed():
+    rng = np.random.default_rng(11)
+    r1, r2 = two_radars()
+    r2.max_range = 100.0  # r2 never sees the target
+    truth = straight([-1000, 900], [6, 0], 30)
+    tracker = MultiTargetTracker(TrackerConfig(max_misses=1))
+    for k in range(30):
+        tracker.begin_step(float(k))
+        for r in (r1, r2):
+            zs, _ = r.measure_multi(truth[k : k + 1, :2], rng)
+            tracker.update(zs, r.position, r.R)
+        conf = tracker.end_step()
+    assert len(conf) == 1
+
+
+def test_coasts_through_lost_reports_then_deletes():
+    rng = np.random.default_rng(12)
+    r1, _ = two_radars()
+    truth = straight([-500, 800], [10, 0], 40)
+    tracker = MultiTargetTracker(TrackerConfig(max_misses=4))
+    for k in range(10):
+        tracker.begin_step(float(k))
+        tracker.update(r1.measure_multi(truth[k : k + 1, :2], rng)[0], r1.position, r1.R)
+        tracker.end_step()
+    (track,) = tracker.confirmed_tracks
+    # Three steps with no delivered report: the track coasts and keeps predicting.
+    for k in range(10, 13):
+        tracker.begin_step(float(k))
+        assert tracker.end_step() == [track]
+    assert np.linalg.norm(track.position - truth[12, :2]) < 30.0
+    # Delivery resumes before max_misses: same track picks up again.
+    tracker.begin_step(13.0)
+    tracker.update(r1.measure_multi(truth[13:14, :2], rng)[0], r1.position, r1.R)
+    assert tracker.end_step() == [track] and track.consecutive_misses == 0
+    for k in range(14, 18):
+        tracker.begin_step(float(k))
+        tracker.end_step()
+    assert tracker.tracks == []
+
+
+def test_step_api_guards():
+    tracker = MultiTargetTracker()
+    with pytest.raises(RuntimeError):
+        tracker.update([], np.zeros(2), np.eye(2))
+    with pytest.raises(RuntimeError):
+        tracker.end_step()
+    tracker.begin_step(5.0)
+    with pytest.raises(RuntimeError):
+        tracker.begin_step(6.0)
+    tracker.end_step()
+    with pytest.raises(ValueError):
+        tracker.begin_step(4.0)

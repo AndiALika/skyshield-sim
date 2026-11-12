@@ -70,10 +70,22 @@ class TrackerConfig:
 
 
 class MultiTargetTracker:
+    """Multi-target tracker driven either one scan at a time (``step``) or, for several sensors
+    and lossy links, as ``begin_step(t)`` -> ``update(...)`` per delivered report -> ``end_step()``.
+
+    Track management (M/N confirmation, miss counting, deletion) runs once per fusion step: a
+    track is "hit" in a step if any report updated it. If no report arrives at all (every link
+    jammed), every track misses that step and coasts on prediction.
+    """
+
     def __init__(self, config: TrackerConfig | None = None) -> None:
         self.config = config or TrackerConfig()
         self.tracks: list[Track] = []
         self._next_id = 0
+        self.time: float | None = None
+        self._hits: set[int] = set()  # track_ids updated in the current step
+        self._born: set[int] = set()  # track_ids created in the current step
+        self._in_step = False
 
     # ----- public API -------------------------------------------------------------------------
 
@@ -88,16 +100,39 @@ class MultiTargetTracker:
         R: np.ndarray,
         dt: float,
     ) -> list[Track]:
-        """Process one scan and return the confirmed tracks afterwards."""
+        """Single-sensor convenience: one scan, dt after the previous one."""
+        self.begin_step((self.time or 0.0) + dt if self.time is not None else 0.0)
+        self.update(measurements, sensor_pos, R)
+        return self.end_step()
+
+    def begin_step(self, t: float) -> None:
+        """Predict every track to time t and open a fusion step."""
+        if self._in_step:
+            raise RuntimeError("begin_step called twice without end_step")
+        if self.time is not None and t < self.time:
+            raise ValueError(f"time went backwards: {t} < {self.time}")
+        dt = 0.0 if self.time is None else t - self.time
+        for tr in self.tracks:
+            tr.filter.predict(dt)
+            tr.age += 1
+        self.time = t
+        self._hits.clear()
+        self._born.clear()
+        self._in_step = True
+
+    def update(self, measurements: list[np.ndarray], sensor_pos: np.ndarray, R: np.ndarray) -> int:
+        """Fuse one sensor's report taken at the current step time. Returns tracks updated.
+
+        Confirmed tracks get first pick, then tentative ones; leftover measurements start new
+        tentative tracks immediately, so a second sensor seeing the same new target in the same
+        step updates that track instead of starting a duplicate.
+        """
+        if not self._in_step:
+            raise RuntimeError("update called outside begin_step/end_step")
         cfg = self.config
         sensor_pos = np.asarray(sensor_pos, dtype=float)
-
-        for t in self.tracks:
-            t.filter.predict(dt)
-            t.age += 1
-
         free = list(range(len(measurements)))
-        hits: set[int] = set()  # indices into self.tracks that received a measurement
+        n_updated = 0
         for status in (TrackStatus.CONFIRMED, TrackStatus.TENTATIVE):
             idx = [i for i, t in enumerate(self.tracks) if t.status is status]
             zs = [measurements[j] for j in free]
@@ -108,18 +143,23 @@ class MultiTargetTracker:
             for ti, mj in assoc.pairs:
                 track = self.tracks[idx[ti]]
                 track.filter.update(zs[mj], sensor_pos, R)
-                hits.add(idx[ti])
+                self._hits.add(track.track_id)
                 used.add(free[mj])
+                n_updated += 1
             free = [j for j in free if j not in used]
-
-        for i, t in enumerate(self.tracks):
-            self._record(t, i in hits)
-
-        self.tracks = [t for t in self.tracks if not self._should_delete(t)]
-
         for j in free:
-            self._spawn(measurements[j], sensor_pos, R)
+            self._born.add(self._spawn(measurements[j], sensor_pos, R).track_id)
+        return n_updated
 
+    def end_step(self) -> list[Track]:
+        """Record hits/misses for this step, confirm and delete tracks. Returns confirmed tracks."""
+        if not self._in_step:
+            raise RuntimeError("end_step called without begin_step")
+        for t in self.tracks:
+            if t.track_id not in self._born:  # newborn tracks already logged their birth hit
+                self._record(t, t.track_id in self._hits)
+        self.tracks = [t for t in self.tracks if not self._should_delete(t)]
+        self._in_step = False
         return self.confirmed_tracks
 
     # ----- internals --------------------------------------------------------------------------
@@ -144,7 +184,7 @@ class MultiTargetTracker:
         misses = len(t.history) - sum(t.history)
         return misses > cfg.confirm_n - cfg.confirm_m
 
-    def _spawn(self, z: np.ndarray, sensor_pos: np.ndarray, R: np.ndarray) -> None:
+    def _spawn(self, z: np.ndarray, sensor_pos: np.ndarray, R: np.ndarray) -> Track:
         cfg = self.config
         ekf = EKF.from_measurement(z, sensor_pos, R, v_sigma=cfg.v_sigma, q=cfg.q)
         t = Track(self._next_id, ekf)
@@ -153,3 +193,4 @@ class MultiTargetTracker:
         if cfg.confirm_m == 1:
             t.status = TrackStatus.CONFIRMED
         self.tracks.append(t)
+        return t
