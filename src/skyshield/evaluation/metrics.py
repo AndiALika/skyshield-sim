@@ -62,3 +62,38 @@ def ospa(X: np.ndarray, Y: np.ndarray, c: float = 100.0, p: float = 2.0) -> OSPA
     card = (card_sum / n) ** (1 / p)
     dist = ((loc_sum + card_sum) / n) ** (1 / p)
     return OSPAResult(dist, loc, card)
+
+
+# ----- detection metrics ----------------------------------------------------------------------
+
+
+def roc_curve(scores: np.ndarray, labels: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """(Pfa, Pd) arrays for every threshold, from (0, 0) to (1, 1). Higher score = more drone-like."""
+    scores = np.asarray(scores, dtype=float)
+    labels = np.asarray(labels).astype(bool)
+    if labels.all() or not labels.any():
+        raise ValueError("need both positive and negative examples")
+    order = np.argsort(-scores, kind="mergesort")
+    s, lab = scores[order], labels[order]
+    # Only emit a point where the score changes, so ties are handled correctly.
+    distinct = np.r_[np.nonzero(np.diff(s))[0], len(s) - 1]
+    tp = np.cumsum(lab)[distinct]
+    fp = np.cumsum(~lab)[distinct]
+    pd = np.r_[0.0, tp / lab.sum()]
+    pfa = np.r_[0.0, fp / (~lab).sum()]
+    return pfa, pd
+
+
+def auc(scores: np.ndarray, labels: np.ndarray) -> float:
+    """Area under the ROC curve (trapezoidal)."""
+    pfa, pd = roc_curve(scores, labels)
+    return float(np.trapezoid(pd, pfa))
+
+
+def threshold_at_pfa(negative_scores: np.ndarray, pfa: float) -> float:
+    """Smallest threshold t such that the fraction of negatives with score > t is <= pfa."""
+    if not 0.0 < pfa < 1.0:
+        raise ValueError("pfa must be in (0, 1)")
+    neg = np.sort(np.asarray(negative_scores, dtype=float))
+    k = int(np.ceil((1.0 - pfa) * len(neg))) - 1
+    return float(neg[min(max(k, 0), len(neg) - 1)])
