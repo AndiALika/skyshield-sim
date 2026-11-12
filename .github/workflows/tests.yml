@@ -1,0 +1,26 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      # PyTorch is left out to keep CI fast: the CNN tests skip without it.
+      - name: Install with the dev and dashboard extras
+        run: pip install -e ".[dev,dashboard]"
+      - name: Lint
+        run: ruff check .
+      - name: Run the tests
+        run: pytest -q

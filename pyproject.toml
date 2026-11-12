@@ -10,8 +10,10 @@ requires-python = ">=3.10"
 dependencies = ["numpy", "scipy", "matplotlib"]
 
 [project.optional-dependencies]
-dev = ["pytest", "ruff"]
+# pytest 9.2.0 crashes at collection on Python 3.10 (AttributeError in NodeId), even on a trivial test.
+dev = ["pytest!=9.2.0", "ruff"]
 ml = ["torch"]
+dashboard = ["streamlit>=1.57", "plotly", "pandas"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
