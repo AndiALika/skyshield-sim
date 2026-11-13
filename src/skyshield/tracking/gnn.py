@@ -87,3 +87,42 @@ def gnn_associate(
         unassigned_tracks=[i for i in range(n) if i not in assigned_t],
         unassigned_meas=[j for j in range(m) if j not in assigned_m],
     )
+
+
+def gnn_associate_bearings(
+    filters: list[EKF],
+    bearings: list[float],
+    sigmas: list[float],
+    sensor_pos: np.ndarray,
+    gate_prob: float = 0.99,
+) -> Association:
+    """GNN for bearing-only reports (1-D gate). Every bearing carries its own std, so S and its
+    log-determinant depend on the pair; the miss cost uses each track's largest ln S over the
+    bearings, which keeps every gated pair cheaper than a miss."""
+    n, m = len(filters), len(bearings)
+    if n == 0 or m == 0:
+        return Association([], list(range(n)), list(range(m)))
+    gamma = gate_threshold(gate_prob, dim=1)
+    b = np.asarray(bearings, float)
+    var = np.asarray(sigmas, float) ** 2
+    d2 = np.empty((n, m))
+    logs = np.empty((n, m))
+    for i, f in enumerate(filters):
+        H = f.H_bearing(f.x, sensor_pos)
+        hph = float((H @ f.P @ H.T)[0, 0])
+        y = (b - f.h_bearing(f.x, sensor_pos) + np.pi) % (2 * np.pi) - np.pi
+        S = hph + var
+        d2[i] = y**2 / S
+        logs[i] = np.log(S)
+    cost = np.full((n, m + n), _FORBIDDEN)
+    cost[:, :m] = np.where(d2 <= gamma, d2 + logs, _FORBIDDEN)
+    cost[np.arange(n), m + np.arange(n)] = gamma + logs.max(axis=1)
+    rows, cols = linear_sum_assignment(cost)
+    pairs = [(int(r), int(c)) for r, c in zip(rows, cols) if c < m and cost[r, c] < _FORBIDDEN]
+    assigned_t = {r for r, _ in pairs}
+    assigned_m = {c for _, c in pairs}
+    return Association(
+        pairs=pairs,
+        unassigned_tracks=[i for i in range(n) if i not in assigned_t],
+        unassigned_meas=[j for j in range(m) if j not in assigned_m],
+    )

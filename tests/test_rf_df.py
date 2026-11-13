@@ -75,3 +75,25 @@ def test_false_alarms_marked_and_counted():
     n = [sum(d.origin == -1 for d in s.measure_multi(np.empty((0, 2)), 20.0, rng))
          for _ in range(4000)]
     assert np.mean(n) == pytest.approx(0.5, abs=0.05)
+
+
+def test_interference_raises_the_noise_floor():
+    from skyshield.sensors.rf_df import DetectionCurve, RFDFSensor
+
+    curve = DetectionCurve(np.array([0.0, 10.0]), np.array([0.0, 1.0]), pfa=0.0)
+    df = RFDFSensor(np.zeros(2), curve, false_alarm_rate=0.0)
+    xy = np.array([[800.0, 0.0]])
+    snr = float(df.snr_db(xy[0], 20.0))
+    assert snr > 10  # always detected without interference
+    noise_mw = 10 ** (df.noise_dbm / 10)
+    clean = df.measure_multi(xy, 20.0, np.random.default_rng(0), np.zeros(64))
+    assert len(clean) == 1 and clean[0].snr_db == pytest.approx(snr)
+    # Jam every channel 30 dB above the noise floor: SNR drops by ~30 dB, never detected.
+    jam = np.full(64, 1000 * noise_mw)
+    hits = [len(df.measure_multi(xy, 20.0, np.random.default_rng(s), jam)) for s in range(50)]
+    assert sum(hits) == 0
+    # Jam one channel only: the hopping link is observed on it 1/64 of the time.
+    one = np.zeros(64)
+    one[5] = 1e6 * noise_mw
+    hits = [len(df.measure_multi(xy, 20.0, np.random.default_rng(s), one)) for s in range(640)]
+    assert 600 < sum(hits) < 640

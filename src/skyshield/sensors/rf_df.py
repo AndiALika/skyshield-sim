@@ -101,14 +101,28 @@ class RFDFSensor:
         return float(np.clip(s, self.sigma_b_min, self.sigma_b_max))
 
     def measure_multi(
-        self, targets_xy: np.ndarray, eirp_dbm: float | np.ndarray, rng: np.random.Generator
+        self,
+        targets_xy: np.ndarray,
+        eirp_dbm: float | np.ndarray,
+        rng: np.random.Generator,
+        channel_interference_mw: np.ndarray | None = None,
     ) -> list[RFDetection]:
-        """One scan. Each target is detected with Pd(SNR); false bearings arrive as Poisson."""
+        """One scan. Each target is detected with Pd(SNR); false bearings arrive as Poisson.
+
+        channel_interference_mw: received interference (e.g. a jammer) in each of the band's
+        channels, each ``bandwidth_hz`` wide. The drone's control link hops, so each target is
+        observed on one uniformly drawn channel and that channel's interference adds to the
+        noise floor. None means no interference and draws no channel.
+        """
         targets_xy = np.asarray(targets_xy, dtype=float).reshape(-1, 2)
         eirp = np.broadcast_to(np.asarray(eirp_dbm, float), (len(targets_xy),))
         out: list[RFDetection] = []
+        noise_mw = 10 ** (self.noise_dbm / 10)
         for i, xy in enumerate(targets_xy):
             snr = float(self.snr_db(xy, eirp[i]))
+            if channel_interference_mw is not None:
+                ch = rng.integers(len(channel_interference_mw))
+                snr -= 10 * np.log10(1 + channel_interference_mw[ch] / noise_mw)
             if self.shadowing_db > 0:
                 snr += self.shadowing_db * rng.standard_normal()
             if rng.random() < float(self.detection_curve(snr)):

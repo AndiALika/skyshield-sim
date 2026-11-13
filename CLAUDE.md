@@ -47,6 +47,7 @@ scenario -> ground truth -> sensors (RF/radar/acoustic) -> comms backhaul (jamme
 | 3. Comms layer | 7-8 | Link model, jammer models, FH/DSSS, BER and PDR curves (DONE) |
 | 4. Integration | 9-10 | Closed loop: jamming -> packet loss -> tracking error (DONE, radar-only) |
 | 5. Polish | 11-12 | Dashboard, GIFs, README, write-up (DONE) |
+| 6. DF fusion | extension | RF DF bearings in the closed loop, bearing-only initiation (DONE) |
 
 MVP = Phases 0, 1, 4 with a simplified link model. Stretch: IMM, JPDA, RL adaptive hopping, swarms, 3D terrain.
 
@@ -161,8 +162,35 @@ re-initiates, so one target gets two track IDs. IMM is the planned fix.
   re-imports the script in every worker (it re-ran the app).
 - `docs/writeup.md`: the technical write-up (models, validation table, results, limitations).
 
+## DF fusion design (Phase 6)
+
+- `tracking/ekf.py`: `update_bearing` (1-D bearing update, per-report sigma). `tracking/gnn.py`:
+  `gnn_associate_bearings` (1-D gate; per-pair S, so the miss cost uses the track's largest ln S).
+  The range-bearing code path is untouched: Phase 1 and Phase 4 results are bit-identical.
+- `tracking/triangulation.py`: a bearing cannot start a track. Leftover bearings from different
+  sites are crossed pairwise; a fix needs a third site's bearing to agree (`df_min_support=1`,
+  suppresses ghost crossings), then Gauss-Newton refines it and gives its covariance.
+- `tracking/manager.py`: `update_bearings(...)` per DF report; triangulation runs in `end_step`.
+  **Radar is the authority where it is heard:** a bearing-only hit does not count toward
+  confirmation or keep a track alive if a radar covering the track reported this step
+  (negative information), and no DF track is started there. Bearings still update the estimate.
+  Found by measurement: counting bearings everywhere let ghost crossings and stale tracks live
+  on bearings that merely passed nearby (unjammed OSPA 10.7 -> 17.6 m with DF added). Two
+  weaker fixes were tried first: keeping bearings off radar-born tentative tracks (13.9 m, a
+  ghost DF track survived) and deleting DF-born tracks after radar misses (12.3 m, a stale
+  radar track survived). The authority rule gives 9.5 m. Table in docs/writeup.md section 3.5.
+  `update(..., coverage_m=...)` tells the tracker which radars were heard.
+- `sensors/rf_df.py`: `measure_multi(..., channel_interference_mw)`. The drone's control link
+  hops over the 64 channels; each detection draws a channel and that channel's jammer power
+  adds to the noise floor. The backhaul jammer shares the band, so it also desensitises DF.
+- `integration/closed_loop.py`: `DFNode` (own backhaul link, 96 + 32 bits per bearing). DF uses
+  generators spawned from the sensor/comms ones (`Generator.spawn` does not advance the parent),
+  so adding DF leaves the radar draws bit-identical (tested).
+- `integration/network.py`: `DF_SITES` near the fusion centre (0.7-0.8 km links), drone control
+  link EIRP 20 dBm, the CNN's "mixed" Pd(SNR) curve; `build_sim(..., sensors="radar+df")`.
+
 ## Next step
 
-All roadmap phases are done. Optional: RF DF bearings into the closed loop (bearing-only EKF
-updates), IMM for the turn re-initiation, UKF, JPDA, ID-switch metric, Stone Soup cross-check,
-DroneRF real-data check, Streamlit Community Cloud deployment.
+All roadmap phases and DF fusion are done; the dashboard is live on Streamlit Community Cloud.
+Optional: DF in the dashboard, IMM for the turn re-initiation, UKF, JPDA, ID-switch metric,
+Stone Soup cross-check, DroneRF real-data check.

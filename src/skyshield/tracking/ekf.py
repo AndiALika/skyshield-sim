@@ -65,6 +65,32 @@ class EKF:
         # Joseph form for numerical stability.
         self.P = I_KH @ self.P @ I_KH.T + K @ R @ K.T
 
+    # ----- bearing-only measurements (passive RF direction finding) -----------------------------
+
+    @staticmethod
+    def h_bearing(x: np.ndarray, sensor_pos: np.ndarray) -> float:
+        return float(np.arctan2(x[1] - sensor_pos[1], x[0] - sensor_pos[0]))
+
+    @staticmethod
+    def H_bearing(x: np.ndarray, sensor_pos: np.ndarray) -> np.ndarray:
+        dx, dy = x[0] - sensor_pos[0], x[1] - sensor_pos[1]
+        r2 = max(dx**2 + dy**2, 1.0)
+        return np.array([[-dy / r2, dx / r2, 0.0, 0.0]])
+
+    def bearing_innovation(self, b: float, sensor_pos: np.ndarray, sigma: float):
+        """Return (residual, S, H) for one bearing (rad) with std sigma (rad); S is 1 x 1."""
+        y = np.array([wrap_angle(b - self.h_bearing(self.x, sensor_pos))])
+        H = self.H_bearing(self.x, sensor_pos)
+        S = H @ self.P @ H.T + sigma**2
+        return y, S, H
+
+    def update_bearing(self, b: float, sensor_pos: np.ndarray, sigma: float) -> None:
+        y, S, H = self.bearing_innovation(b, sensor_pos, sigma)
+        K = self.P @ H.T / S[0, 0]
+        self.x = self.x + K @ y
+        I_KH = np.eye(4) - K @ H
+        self.P = I_KH @ self.P @ I_KH.T + sigma**2 * (K @ K.T)
+
     @classmethod
     def from_measurement(
         cls, z: np.ndarray, sensor_pos: np.ndarray, R: np.ndarray, v_sigma: float = 30.0, q: float = 1.0

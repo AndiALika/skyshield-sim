@@ -20,7 +20,7 @@ Drones fly through a protected area. Three radars detect them, with misses and c
 
 - **Technical write-up:** [docs/writeup.md](docs/writeup.md) covers models, validation, results and limitations.
 - **Interactive dashboard:** [try it live](https://skyshield-sim-ak4yhbdtws32lihwrsdbyk.streamlit.app/), or run it locally with `streamlit run streamlit_app.py` (see [Dashboard](#dashboard)).
-- Everything is written from scratch: the EKF, GNN/Hungarian association, track management, OSPA, the CNN RF detector, and the link and jammer models. The suite has 110 tests, and every experiment is seeded and reproducible.
+- Everything is written from scratch: the EKF (range-bearing and bearing-only), GNN/Hungarian association, track management, bearing triangulation, OSPA, the CNN RF detector, and the link and jammer models. The suite has 120 tests, and every experiment is seeded and reproducible.
 
 ## Results by phase
 
@@ -125,6 +125,29 @@ A 50 dBm spot jammer switched on from 100 to 200 s blinds the plain-link network
 - **PDR alone doesn't predict tracking error.** Jamming losses sit below the i.i.d. curve. At PDR 0.33, jamming that removes whole sensors gives about 24 m, while random loss spread over all sensors gives about 50 m. A sensor that keeps reporting every scan keeps its tracks alive; random loss starves all of them.
 - **Latency doesn't matter here.** ARQ delays are about 2 ms against a 1 s scan and 0.2 s fusion deadline, so no report ever went stale. Loss, not delay, drives the degradation.
 
+**Phase 6 (passive RF direction finding in the loop):** three passive DF sites near the fusion centre report bearings to the drones' 20 dBm control links. Detection uses the Phase 2 CNN's measured Pd(SNR) curve. Each site has its own short backhaul link (0.7-0.8 km) on the same radio as the radars. The jammer shares the 2.4 GHz band with the drones' control links, so while it is on it also raises the DF receivers' noise floor.
+
+![DF keeps the picture during a burst](results/phase6_burst_replay.gif)
+
+*Plain backhaul, 46 dBm spot jammer on 100-200 s. Left, radar only: every radar report is lost and there is no track picture. Right, the same network plus three DF sites: their bearings (dashed) still reach the fusion centre over shorter links, and all four drones stay tracked (OSPA 32 m, correct target count 100 % of the burst).*
+
+- **Bearing-only tracking, written from scratch.** The EKF gets a 1-D bearing update with a per-report σ, and GNN gets a 1-D gate. A bearing can't start a track, so new tracks come from crossings of bearings from two sites, confirmed by a third (this suppresses "ghost" crossings) and refined by least squares.
+- **Radar is the authority where it is heard.** A bearing-only hit doesn't count toward confirming or keeping a track if a radar covering it reported this step and didn't see it. This rule came from measurement: when bearings counted everywhere, ghost crossings and stale tracks lived on bearings that merely passed nearby, and unjammed OSPA got *worse* with DF (10.8 to 17 m). With the rule, adding DF never makes tracking worse.
+
+![DF resilience](results/phase6_resilience.png)
+
+| Backhaul | 2× OSPA, radar only | 2× OSPA, radar + DF | Blind, radar only | Blind, radar + DF |
+|---|---|---|---|---|
+| plain | 40 dBm | 46 dBm | 46 dBm | 50 dBm |
+| FH | 58 dBm | 62 dBm | 64 dBm | 64 dBm |
+| DSSS | 56 dBm | 62 dBm | 64 dBm | 64 dBm |
+
+- **No jamming:** OSPA 10.8 m with radar only, 9.7 m with DF added (bearings refine the radar tracks), and 44.5 m with DF alone. DF is a fallback, not a replacement.
+- **DF buys 4-6 dB before tracking error doubles.** With a plain backhaul it also opens a window (46-48 dBm) where the radars are blind and DF still holds a track picture.
+- **Against barrage jamming, DF doesn't move the blind point (64 dBm),** because the same jammer desensitises the DF receivers. In the ablation where DF is immune to the jammer, the blind point moves to 68 dBm. The DF *receivers* fail about 4 dB before their own backhaul links do.
+
+![DF ablations](results/phase6_ablation.png)
+
 ## Dashboard
 
 Live: https://skyshield-sim-ak4yhbdtws32lihwrsdbyk.streamlit.app/
@@ -156,12 +179,13 @@ python experiments/phase2_rf_detection.py   # ~10-20 min on CPU
 python experiments/phase3_comms.py          # ~40 s
 python experiments/phase4_closed_loop.py    # ~9 min (process pool)
 python experiments/phase5_replay_gifs.py    # ~1 min, README GIFs
+python experiments/phase6_df_fusion.py      # ~25 min (process pool); --gif-only for the GIF
 streamlit run streamlit_app.py
 ```
 
 ## Limitations
 
-- The closed loop is radar-only. The RF direction-finding sensor is modelled but not yet fused.
+- DF-only tracking is coarse (44 m OSPA): bearings at 1-2 km with 1-2° error. DF is a fallback.
 - The constant-velocity EKF re-initiates a track after a sharp turn. IMM is the planned fix.
 - RF data is synthetic, so detector SNR thresholds are properties of the simulator, not of real hardware.
 - 2D geometry, log-distance propagation, a static jammer.

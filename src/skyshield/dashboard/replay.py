@@ -39,9 +39,22 @@ def draw_map(
     fusion: np.ndarray,
     jammer_pos: np.ndarray | None,
     trail: int = 40,
+    df_sites: Sequence[np.ndarray] | None = None,
 ) -> None:
     f = frames[k]
     ax.clear()
+    # DF sites and their bearing rays (dashed: blue if fused, red if lost on the backhaul).
+    for i, site in enumerate(df_sites if len(f.df_delivered) else []):  # run without DF: skip
+        ok = bool(f.df_delivered[i]) if i < len(f.df_delivered) else False
+        if i < len(f.df_bearings):
+            for b in f.df_bearings[i]:
+                end = site + 6000.0 * np.array([np.cos(b), np.sin(b)])
+                ax.plot(*np.c_[site, end], color=DET_C if ok else LOST_C, lw=0.7, ls="--",
+                        alpha=0.55, zorder=1)
+        ax.plot(*np.c_[site, fusion], color=TRACK_C if ok else LOST_C, lw=1.2,
+                ls="-" if ok else ":", zorder=1)
+        ax.scatter(*site, marker="D", s=45, color="tab:purple", zorder=5)
+        ax.annotate(f"DF{i}", site, xytext=(5, 4), textcoords="offset points", fontsize=7)
     # Truth trails.
     paths: dict[int, list[np.ndarray]] = {}
     for g in frames[max(0, k - trail): k + 1]:
@@ -92,6 +105,7 @@ def save_gif(
     jam_window: tuple[float, float] | None = None,
     title: str = "",
     dpi: int = 70,
+    df_sites: Sequence[np.ndarray] | None = None,
 ) -> Path:
     """Side-by-side GIF, one panel per recorded run (all runs must share the scenario)."""
     names = list(logs)
@@ -118,7 +132,7 @@ def save_gif(
     def draw(i: int) -> None:
         k = steps[i]
         for ax, n in zip(maps, names):
-            draw_map(ax, frames[n], k, radars, fusion, jammer_pos)
+            draw_map(ax, frames[n], k, radars, fusion, jammer_pos, df_sites=df_sites)
             ax.set_xlim(lo[0], hi[0])
             ax.set_ylim(lo[1], hi[1])
             g = frames[n][k]
